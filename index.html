@@ -62,13 +62,11 @@
             pointer-events: none; display: none; z-index: 5; transform: translateX(-50%);
         }
 
-        /* 💡 데드라인 상향 조정 (top: 80px -> 40px) */
         #deadline-line {
             position: absolute; top: 40px; left: 0; right: 0; height: 2px;
             background: rgba(255, 112, 166, 0.2); border-bottom: 2px dashed #ff70a6;
             z-index: 4; pointer-events: none;
         }
-        /* 경고 배너도 데드라인에 맞게 상향 */
         #warning-banner {
             position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
             background: #ff477e; color: white; padding: 6px 16px; border-radius: 20px;
@@ -122,6 +120,11 @@
             margin-top:20px; padding: 12px 24px; font-size:16px; border-radius:12px; border:2px solid #fff; background:#ffb3c6; color:white; font-weight:bold; cursor:pointer; box-shadow: 0 4px 0 #f78fb3; transition: all 0.1s;
         }
         .action-btn:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+        
+        /* 💡 자이로센서 디버깅용 텍스트 (화면 좌측 하단) */
+        #gyro-debug {
+            position: absolute; bottom: 5px; left: 10px; font-size: 11px; color: #b9a0e6; z-index: 999; font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -152,7 +155,6 @@
             <button class="btn-item btn-tilt" id="btn-tilt" onclick="useItem('tilt')">
                 <span>📱</span>
                 <div id="tilt-label">자이로 틸트</div>
-                <!-- 💡 틸트 타이머 10.0초로 초기 텍스트 수정 -->
                 <div id="tilt-timer" style="display:none; color:#fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">10.0s</div>
             </button>
         </div>
@@ -179,6 +181,9 @@
         <div style="font-size: 16px; margin-bottom: 10px;">데드라인을 초과했습니다!</div>
         <button class="action-btn" onclick="restartGame()">다시 시작 (⚡ -100 에너지)</button>
     </div>
+    
+    <!-- 💡 센서가 정상적으로 값을 읽어오는지 확인하는 텍스트 -->
+    <div id="gyro-debug">Gyro: 센서 대기중...</div>
 </div>
 
 <script>
@@ -188,7 +193,6 @@
     let energyCostBase = 1; 
     let itemCost = 10; 
 
-    // 💡 JS에서도 데드라인 Y좌표 기준을 40으로 상향
     const DEADLINE_Y = 40;
     let isGameOver = false;
     let isWarning = false;
@@ -210,6 +214,7 @@
     const overlayEnergy = document.getElementById('overlay-energy');
     const overlayGameOver = document.getElementById('overlay-gameover');
     const warningBanner = document.getElementById('warning-banner');
+    const gyroDebug = document.getElementById('gyro-debug');
 
     const baseImgSize = 513;
     const LEVELS = [
@@ -309,20 +314,33 @@
         Bodies.rectangle(width / 2, -150, width * 2, 100, wallOptions)
     ]);
 
-    /* --- 자이로센서(DeviceOrientation) 기능 셋팅 --- */
+    /* --- 💡 개선된 자이로센서(DeviceOrientation) 로직 --- */
     window.addEventListener('deviceorientation', (event) => {
-        // 💡 틸트 아이템이 활성화되어 있거나, 오토 모드가 켜져있을 때 모두 센서 작동 허용
+        // 브라우저가 센서값을 보내주는지 디버그 텍스트에 표시
+        let gamma = event.gamma || 0; // 좌우 기울임 (-90 ~ 90)
+        let beta = event.beta || 0;   // 앞뒤 기울임 (-180 ~ 180)
+        
+        gyroDebug.innerText = `X: ${Math.round(gamma)}, Y: ${Math.round(beta)}`;
+
         if (!isTiltActive && !isAutoDrop) return;
         
-        const maxForce = 3;
-        let forceX = (event.gamma / 20) * maxForce;
-        let forceY = (event.beta / 20) * maxForce;
+        // 휴대폰을 쥔 자연스러운 각도(약 45도)를 0으로 보정 (0일 때 아래로 떨어짐)
+        let adjustedBeta = beta - 45; 
+        
+        const maxForce = 3; // 최대 중력 배율
+        const sensitivity = 30; // 30도 기울였을 때 최대 힘에 도달
 
+        let forceX = (gamma / sensitivity) * maxForce;
+        let forceY = (adjustedBeta / sensitivity) * maxForce;
+
+        // 값의 한계를 -3 ~ 3으로 고정
         forceX = Math.max(-maxForce, Math.min(maxForce, forceX));
         forceY = Math.max(-maxForce, Math.min(maxForce, forceY));
 
         engine.gravity.x = forceX;
-        engine.gravity.y = forceY;
+        
+        // 기본 중력(1)에 forceY를 더해 상하 반전이 과도하지 않도록 세팅
+        engine.gravity.y = Math.max(-maxForce, Math.min(maxForce, 1 + forceY)); 
     });
 
     function activateTiltTimer() {
@@ -334,15 +352,13 @@
         tiltBtn.classList.add('active'); tiltLabel.style.display = 'none'; tiltTimer.style.display = 'block';
         showFloatingText(`기기를 기울이세요! 📱`, window.innerWidth/2 - 65, height/2);
         
-        // 💡 10초 셋팅으로 수정
         tiltTimeRemaining = 10.0; tiltTimer.innerText = tiltTimeRemaining.toFixed(1) + 's';
 
         tiltInterval = setInterval(() => {
             tiltTimeRemaining -= 0.1;
             if (tiltTimeRemaining <= 0) {
                 clearInterval(tiltInterval); isTiltActive = false; 
-                // 오토 모드가 켜져 있다면 중력 초기화 안 함
-                if (!isAutoDrop) { engine.gravity.x = 0; engine.gravity.y = 1; }
+                if (!isAutoDrop) { engine.gravity.x = 0; engine.gravity.y = 1; } // 중력 원상복구
                 tiltBtn.classList.remove('active'); tiltLabel.style.display = 'block'; tiltTimer.style.display = 'none';
             } else { tiltTimer.innerText = tiltTimeRemaining.toFixed(1) + 's'; }
         }, 100);
@@ -437,6 +453,7 @@
                         else { 
                             showFloatingText(`권한이 필요해요! 📱`, window.innerWidth/2 - 50, height/2); 
                             energy += itemCost; uiEnergy.innerText = energy; 
+                            gyroDebug.innerText = 'Gyro: 권한 거부됨';
                         }
                     }).catch(console.error);
             } else {
@@ -483,7 +500,6 @@
 
     gameSection.addEventListener('pointerdown', (e) => { if (isAutoDrop) return; executeDrop(e.offsetX); });
 
-    /* --- 💡 오토 드롭 토글 (자이로 권한 요청 및 활성화 포함) --- */
     window.toggleAutoDrop = function() {
         const runToggle = () => {
             isAutoDrop = !isAutoDrop; const btnAuto = document.getElementById('btn-auto');
@@ -499,12 +515,14 @@
             }
         };
 
-        // 오토 모드를 켤 때 iOS 자이로 권한이 필요할 수 있으므로 권한 확인 절차 추가
         if (!isAutoDrop && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(permissionState => {
                     if (permissionState === 'granted') { runToggle(); } 
-                    else { showFloatingText(`자이로 권한 필요! 📱`, window.innerWidth/2 - 60, height/2); }
+                    else { 
+                        showFloatingText(`자이로 권한 필요! 📱`, window.innerWidth/2 - 60, height/2); 
+                        gyroDebug.innerText = 'Gyro: 권한 거부됨';
+                    }
                 }).catch(console.error);
         } else {
             runToggle();
