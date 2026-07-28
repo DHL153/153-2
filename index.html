@@ -2,40 +2,46 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>미소녀 수박게임 + 보드판 + 이미지 적용</title>
+    <!-- 💡 모바일 확대 방지 및 뷰포트 고정 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>미소녀 수박게임 + 보드판 + 오토드롭 에디션</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
-        * { box-sizing: border-box; font-family: 'Pretendard', 'Segoe UI', sans-serif; }
+        * { box-sizing: border-box; font-family: 'Pretendard', 'Segoe UI', sans-serif; touch-action: none; }
         body { 
             margin: 0; padding: 0; 
             background: linear-gradient(135deg, #a0c4ff 0%, #c3aed6 50%, #ffcbf2 100%);
             display: flex; justify-content: center; align-items: center; 
-            height: 100vh; overflow: hidden;
+            /* 💡 모바일 브라우저 UI를 고려한 100dvh 꽉 찬 화면 */
+            height: 100dvh; width: 100vw; overflow: hidden;
             color: #4a4e69; 
         }
         #app {
-            width: 100%; max-width: 420px; height: 100vh; max-height: 850px;
+            width: 100%; max-width: 420px; 
+            height: 100dvh; /* 모바일에 꽉 차도록 변경 */
             background: rgba(255, 255, 255, 0.95); 
             position: relative;
             display: flex; flex-direction: column;
-            border: 4px solid #b9a0e6; 
-            border-radius: 16px;
             box-shadow: 0 10px 30px rgba(185, 160, 230, 0.4); 
             overflow: hidden;
         }
         
-        /* 상단 보드판 영역 */
+        /* 모바일이 아닌 PC 뷰어에서는 테두리 라운드 유지 */
+        @media (min-width: 421px) {
+            #app { height: 95vh; border: 4px solid #b9a0e6; border-radius: 16px; }
+        }
+        
+        /* 1. 상단 보드판 영역 */
         #board-section {
             flex: 2.5; 
             background: #e8dff5; 
             position: relative;
             border-bottom: 4px solid #b9a0e6;
             display: flex; justify-content: center; align-items: center;
-            flex-direction: column; padding: 10px;
+            flex-direction: column; padding: 5px 10px;
         }
-        .board-header { font-weight: bold; color: #8e7cc3; margin-bottom: 10px; font-size: 13px;}
-        #board-track { width: 340px; height: 180px; position: relative; }
+        .board-header { font-weight: bold; color: #8e7cc3; margin-bottom: 8px; font-size: 13px;}
+        #board-track { width: 340px; height: 160px; position: relative; transform: scale(0.95); }
         .cell {
             position: absolute; width: 40px; height: 40px; 
             background: #fff; border: 2px solid #b9a0e6; border-radius: 10px;
@@ -55,7 +61,7 @@
             top: 8px; left: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
         }
 
-        /* 중앙 수박게임 영역 */
+        /* 2. 중앙 수박게임 영역 */
         #game-section {
             flex: 5; 
             background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(220, 240, 255, 0.6));
@@ -63,10 +69,18 @@
         }
         canvas { display: block; width: 100%; height: 100%; }
         
+        /* 💡 마우스를 따라다니는 미리보기 구슬 (초기에 보이도록 셋팅) */
+        #preview-ball {
+            position: absolute; top: 30px; left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 6; opacity: 0.8;
+            display: none;
+        }
+
         #drop-line {
-            position: absolute; top: 0; bottom: 0; width: 2px;
+            position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
             background: rgba(185, 160, 230, 0.3); border-left: 2px dashed #b9a0e6;
-            pointer-events: none; display: none; z-index: 5;
+            pointer-events: none; display: none; z-index: 5; transform: translateX(-50%);
         }
 
         #deadline-line {
@@ -86,7 +100,7 @@
             to { transform: translateX(-50%) scale(1.05); }
         }
 
-        /* 하단 UI 영역 */
+        /* 3. 하단 UI 영역 */
         #ui-section {
             flex: 2.5; background: #ffb3c6; padding: 12px 15px;
             display: flex; flex-direction: column; justify-content: space-between;
@@ -102,7 +116,7 @@
         }
         .stat-box span { color: #d81b60; margin-right: 8px; }
         
-        .item-group { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+        .item-group { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
         .btn-item {
             flex: 1; padding: 6px 0; border: 2px solid #fff; border-radius: 12px;
             font-size: 11px; font-weight: bold; color: white;
@@ -120,12 +134,18 @@
 
         .multiplier-group { display: flex; justify-content: space-between; gap: 6px; }
         .btn-mult {
-            flex: 1; padding: 10px 0; border: none; border-radius: 10px;
+            flex: 1; padding: 8px 0; border: none; border-radius: 10px;
             font-size: 14px; font-weight: bold; color: #8e7cc3;
             background: #fff; cursor: pointer; box-shadow: 0 4px 0 #d1c4e9; transition: all 0.1s;
         }
         .btn-mult:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
         .btn-mult.active { background: #b9a0e6; color: white; box-shadow: 0 4px 0 #9575cd; }
+
+        /* 💡 오토 버튼 전용 스타일 */
+        .btn-auto {
+            flex: 1.5; background: #fff; color: #8e7cc3; box-shadow: 0 4px 0 #d1c4e9;
+        }
+        .btn-auto.active { background: #ff70a6; color: white; box-shadow: 0 4px 0 #d81b60; }
 
         .floating-text {
             position: absolute; font-weight: bold; font-size: 20px;
@@ -165,6 +185,8 @@
         <div id="deadline-line"></div>
         <div id="warning-banner">⚠️ 위험! 5.0초</div>
         <div id="drop-line"></div>
+        <!-- 💡 떨어지기 전 미리보기 구슬 추가 -->
+        <img id="preview-ball" src="" alt="preview">
     </div>
 
     <div id="ui-section">
@@ -185,13 +207,14 @@
         </div>
 
         <div style="color: #6a4c9c; font-size: 11px; text-align: center; margin-bottom: 6px; font-weight: bold;">
-            에너지 소모 배수를 선택하고 상단 영역을 터치해 캐릭터를 드롭하세요!
+            에너지 소모 배수를 선택하고 상단 영역을 터치해 드롭하세요!
         </div>
         <div class="multiplier-group">
+            <!-- 💡 오토드롭 버튼 추가 -->
+            <button class="btn-mult btn-auto" id="btn-auto" onclick="toggleAutoDrop()">🤖 오토: OFF</button>
             <button class="btn-mult active" data-mult="1">x1</button>
             <button class="btn-mult" data-mult="3">x3</button>
             <button class="btn-mult" data-mult="5">x5</button>
-            <button class="btn-mult" data-mult="10" style="background:#fff59d; color:#d35400; box-shadow:0 4px 0 #f6c026;">x10</button>
         </div>
     </div>
     
@@ -212,7 +235,8 @@
     let energy = 100;
     let gold = 0;
     let multiplier = 1;
-    let energyCostBase = 2; 
+    // 💡 구슬 1개 드롭 시 소모되는 기본 에너지를 1로 설정
+    let energyCostBase = 1; 
     let itemCost = 10; 
 
     const DEADLINE_Y = 80;
@@ -228,27 +252,24 @@
     let tiltInterval = null;
     let tiltTimeRemaining = 0;
 
+    // 💡 오토 드롭 관련 상태
+    let isAutoDrop = false;
+    let autoDropTimer = null;
+
     const uiEnergy = document.getElementById('val-energy');
     const uiGold = document.getElementById('val-gold');
     const overlayEnergy = document.getElementById('overlay-energy');
     const overlayGameOver = document.getElementById('overlay-gameover');
     const warningBanner = document.getElementById('warning-banner');
 
-    // 💡 이미지 렌더링을 위한 레벨 데이터 업데이트 (513x513 스케일링 자동 계산)
     const baseImgSize = 513;
     const LEVELS = [
-        { radius: 15, img: 'images/lv01.png' },
-        { radius: 22, img: 'images/lv02.png' },
-        { radius: 30, img: 'images/lv03.png' },
-        { radius: 40, img: 'images/lv04.png' },
-        { radius: 50, img: 'images/lv05.png' },
-        { radius: 62, img: 'images/lv06.png' },
-        { radius: 75, img: 'images/lv07.png' },
-        { radius: 90, img: 'images/lv08.png' },
-        { radius: 110, img: 'images/lv09.png' },
-        { radius: 130, img: 'images/lv10.png' } // 10단계까지 확장
+        { radius: 15, img: 'images/lv01.png' }, { radius: 22, img: 'images/lv02.png' },
+        { radius: 30, img: 'images/lv03.png' }, { radius: 40, img: 'images/lv04.png' },
+        { radius: 50, img: 'images/lv05.png' }, { radius: 62, img: 'images/lv06.png' },
+        { radius: 75, img: 'images/lv07.png' }, { radius: 90, img: 'images/lv08.png' },
+        { radius: 110, img: 'images/lv09.png' }, { radius: 130, img: 'images/lv10.png' } 
     ].map(level => {
-        // 이미지 비율을 구슬 크기에 정확히 맞추기 위한 연산
         level.scale = (level.radius * 2) / baseImgSize;
         return level;
     });
@@ -257,11 +278,12 @@
     const boardTrack = document.getElementById('board-track');
     const token = document.getElementById('token');
     
+    // 모바일에 맞게 약간 축소된 보드판 좌표
     const cellCoords = [
         {x: 0, y: 0}, {x: 75, y: 0}, {x: 150, y: 0}, {x: 225, y: 0}, {x: 300, y: 0},
-        {x: 300, y: 70}, {x: 300, y: 140},
-        {x: 225, y: 140}, {x: 150, y: 140}, {x: 75, y: 140}, {x: 0, y: 140},
-        {x: 0, y: 70}
+        {x: 300, y: 60}, {x: 300, y: 120},
+        {x: 225, y: 120}, {x: 150, y: 120}, {x: 75, y: 120}, {x: 0, y: 120},
+        {x: 0, y: 60}
     ];
     const totalCells = cellCoords.length;
     let tokenPos = 0;
@@ -321,7 +343,7 @@
         document.body.appendChild(el); setTimeout(() => el.remove(), 1000);
     }
 
-    const btns = document.querySelectorAll('.btn-mult');
+    const btns = document.querySelectorAll('.btn-mult[data-mult]');
     btns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             btns.forEach(b => b.classList.remove('active')); e.target.classList.add('active');
@@ -338,11 +360,12 @@
     const width = gameSection.clientWidth;
     const height = gameSection.clientHeight;
 
-    const engine = Engine.create();
+    // 💡 틸트(중력)가 정상 작동하도록 물리 엔진 Sleep 방지 옵션 추가
+    const engine = Engine.create({ enableSleeping: false });
     const world = engine.world;
     const render = Render.create({
         element: gameSection, engine: engine,
-        options: { width: width, height: height, wireframes: false, background: 'transparent' }
+        options: { width: width, height: height, wireframes: false, background: 'transparent', pixelRatio: window.devicePixelRatio }
     });
 
     Render.run(render); Runner.run(Runner.create(), engine);
@@ -416,6 +439,7 @@
 
     function triggerGameOver() {
         isGameOver = true; isWarning = false; warningBanner.style.display = 'none';
+        if(isAutoDrop) toggleAutoDrop(); // 오토드롭 정지
         overlayGameOver.style.display = 'flex';
     }
 
@@ -431,6 +455,7 @@
         document.getElementById('tilt-timer').style.display = 'none';
         
         consumeEnergy(100);
+        updatePreview();
     }
 
     window.useItem = function(itemType) {
@@ -467,6 +492,7 @@
             
             tiltBtn.classList.add('active'); tiltLabel.style.display = 'none'; tiltTimer.style.display = 'block';
 
+            // Sleep 상태 방지로 이제 틸트가 정상 작동합니다.
             engine.gravity.x = Math.random() > 0.5 ? 0.8 : -0.8;
             showFloatingText(`틸트 5초 작동! 📱`, window.innerWidth/2 - 50, height/2);
             
@@ -482,41 +508,97 @@
         }
     };
 
+    /* --- 미리보기 & 드롭 로직 --- */
     const dropLine = document.getElementById('drop-line');
-    gameSection.addEventListener('mousemove', (e) => {
-        if(isGameOver || energyRechargeInterval) return;
-        dropLine.style.display = 'block'; dropLine.style.left = e.offsetX + 'px';
-    });
-    gameSection.addEventListener('mouseleave', () => { dropLine.style.display = 'none'; });
-
+    const previewImg = document.getElementById('preview-ball');
+    let nextDropLevel = Math.floor(Math.random() * 2);
     let canDrop = true;
-    gameSection.addEventListener('pointerdown', (e) => {
+
+    // 초기 미리보기 화면 세팅
+    function updatePreview() {
+        const data = LEVELS[nextDropLevel];
+        previewImg.src = data.img;
+        previewImg.style.width = (data.radius * 2) + 'px';
+        previewImg.style.height = (data.radius * 2) + 'px';
+        if (!isAutoDrop) previewImg.style.display = 'block';
+    }
+    updatePreview();
+
+    // 터치/마우스 위치 추적
+    gameSection.addEventListener('pointermove', (e) => {
+        if(isGameOver || energyRechargeInterval || isAutoDrop || !canDrop) return;
+        dropLine.style.display = 'block'; 
+        dropLine.style.left = e.offsetX + 'px';
+        previewImg.style.left = e.offsetX + 'px';
+    });
+    
+    gameSection.addEventListener('pointerleave', () => { 
+        dropLine.style.display = 'none'; 
+        // 화면을 벗어나면 중앙 정렬 유지
+        previewImg.style.left = '50%'; 
+    });
+
+    function executeDrop(xPos) {
         if (!canDrop || isGameOver || energyRechargeInterval) return;
         
         const currentCost = energyCostBase * multiplier;
         if (!consumeEnergy(currentCost)) return;
 
-        const dropLevel = Math.floor(Math.random() * 2);
-        const levelData = LEVELS[dropLevel];
-        const startX = Math.min(Math.max(e.offsetX, levelData.radius), width - levelData.radius);
+        const levelData = LEVELS[nextDropLevel];
+        const startX = Math.min(Math.max(xPos, levelData.radius), width - levelData.radius);
         
-        // 💡 이미지가 적용되도록 sprite 렌더링 옵션 추가
         const body = Bodies.circle(startX, 30, levelData.radius, {
             restitution: 0.3, friction: 0.1,
             render: {
-                sprite: {
-                    texture: levelData.img,
-                    xScale: levelData.scale,
-                    yScale: levelData.scale
-                }
+                sprite: { texture: levelData.img, xScale: levelData.scale, yScale: levelData.scale }
             }
         });
-        body.level = dropLevel; body.isMerging = false; body.spawnTime = Date.now();
+        body.level = nextDropLevel; body.isMerging = false; body.spawnTime = Date.now();
         Composite.add(world, body);
 
-        canDrop = false; setTimeout(() => canDrop = true, 500);
+        canDrop = false; 
+        previewImg.style.display = 'none';
+        dropLine.style.display = 'none';
+        
+        setTimeout(() => { 
+            canDrop = true; 
+            nextDropLevel = Math.floor(Math.random() * 2); // 다음 구슬 세팅
+            updatePreview();
+        }, 500);
+    }
+
+    gameSection.addEventListener('pointerdown', (e) => {
+        if (isAutoDrop) return; // 오토 모드일 땐 수동 드롭 차단
+        executeDrop(e.offsetX);
     });
 
+    /* --- 오토 드롭 토글 기능 --- */
+    window.toggleAutoDrop = function() {
+        isAutoDrop = !isAutoDrop;
+        const btnAuto = document.getElementById('btn-auto');
+        
+        if (isAutoDrop) {
+            btnAuto.classList.add('active');
+            btnAuto.innerText = '🤖 오토: ON';
+            previewImg.style.display = 'none';
+            dropLine.style.display = 'none';
+            
+            autoDropTimer = setInterval(() => {
+                if (canDrop && !isGameOver && !energyRechargeInterval) {
+                    // 무작위 x 좌표 계산하여 드롭
+                    const randomX = Math.random() * width;
+                    executeDrop(randomX);
+                }
+            }, 600); // 수동 대기시간(500ms)보다 약간 길게 설정
+        } else {
+            btnAuto.classList.remove('active');
+            btnAuto.innerText = '🤖 오토: OFF';
+            clearInterval(autoDropTimer);
+            updatePreview(); // 다시 미리보기 표시
+        }
+    }
+
+    /* --- 충돌 및 합성 이벤트 --- */
     Events.on(engine, 'collisionStart', (event) => {
         const pairs = event.pairs;
         for (let i = 0; i < pairs.length; i++) {
@@ -536,15 +618,10 @@
                     Composite.remove(world, [bodyA, bodyB]);
                     const nextLevelData = LEVELS[nextLevel];
                     
-                    // 💡 병합 시 새로운 이미지 렌더링 적용
                     const newBody = Bodies.circle(midX, midY, nextLevelData.radius, {
                         restitution: 0.3,
                         render: {
-                            sprite: {
-                                texture: nextLevelData.img,
-                                xScale: nextLevelData.scale,
-                                yScale: nextLevelData.scale
-                            }
+                            sprite: { texture: nextLevelData.img, xScale: nextLevelData.scale, yScale: nextLevelData.scale }
                         }
                     });
                     newBody.level = nextLevel; newBody.isMerging = false; newBody.spawnTime = Date.now();
