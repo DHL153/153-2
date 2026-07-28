@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>미소녀 수박게임 + 보드판 + 이미지 적용</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Pretendard', 'Segoe UI', sans-serif; }
+        body { 
+            margin: 0; padding: 0; 
+            background: linear-gradient(135deg, #a0c4ff 0%, #c3aed6 50%, #ffcbf2 100%);
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; overflow: hidden;
+            color: #4a4e69; 
+        }
+        #app {
+            width: 100%; max-width: 420px; height: 100vh; max-height: 850px;
+            background: rgba(255, 255, 255, 0.95); 
+            position: relative;
+            display: flex; flex-direction: column;
+            border: 4px solid #b9a0e6; 
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(185, 160, 230, 0.4); 
+            overflow: hidden;
+        }
+        
+        /* 상단 보드판 영역 */
+        #board-section {
+            flex: 2.5; 
+            background: #e8dff5; 
+            position: relative;
+            border-bottom: 4px solid #b9a0e6;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column; padding: 10px;
+        }
+        .board-header { font-weight: bold; color: #8e7cc3; margin-bottom: 10px; font-size: 13px;}
+        #board-track { width: 340px; height: 180px; position: relative; }
+        .cell {
+            position: absolute; width: 40px; height: 40px; 
+            background: #fff; border: 2px solid #b9a0e6; border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 10px; font-weight: bold; text-align: center;
+            box-shadow: 0 4px 0 #b9a0e6; line-height: 1.1; color: #4a4e69;
+        }
+        .cell.gold { background: #fff59d; border-color: #f6c026; box-shadow: 0 4px 0 #f6c026; color: #d35400; }
+        .cell.event { background: #b3e5fc; border-color: #4fc3f7; box-shadow: 0 4px 0 #4fc3f7; color: #0277bd; }
+        .cell.energy { background: #b9f6ca; border-color: #69f0ae; box-shadow: 0 4px 0 #69f0ae; color: #1b5e20; }
+        
+        #token {
+            position: absolute; width: 24px; height: 24px; 
+            background: #ff70a6; border-radius: 50%;
+            border: 3px solid white; z-index: 10;
+            transition: all 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+            top: 8px; left: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+        }
+
+        /* 중앙 수박게임 영역 */
+        #game-section {
+            flex: 5; 
+            background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(220, 240, 255, 0.6));
+            position: relative; overflow: hidden; cursor: crosshair;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        #drop-line {
+            position: absolute; top: 0; bottom: 0; width: 2px;
+            background: rgba(185, 160, 230, 0.3); border-left: 2px dashed #b9a0e6;
+            pointer-events: none; display: none; z-index: 5;
+        }
+
+        #deadline-line {
+            position: absolute; top: 80px; left: 0; right: 0; height: 2px;
+            background: rgba(255, 112, 166, 0.2); border-bottom: 2px dashed #ff70a6;
+            z-index: 4; pointer-events: none;
+        }
+        #warning-banner {
+            position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
+            background: #ff477e; color: white; padding: 6px 16px; border-radius: 20px;
+            font-size: 14px; font-weight: bold; border: 2px solid white;
+            box-shadow: 0 4px 10px rgba(255, 71, 126, 0.4);
+            display: none; z-index: 10; animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse {
+            from { transform: translateX(-50%) scale(1); }
+            to { transform: translateX(-50%) scale(1.05); }
+        }
+
+        /* 하단 UI 영역 */
+        #ui-section {
+            flex: 2.5; background: #ffb3c6; padding: 12px 15px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            border-top: 4px solid #b9a0e6; z-index: 10;
+        }
+        .stats-bar {
+            display: flex; justify-content: space-between;
+            color: #4a4e69; font-weight: bold; font-size: 16px; margin-bottom: 8px;
+        }
+        .stat-box {
+            background: rgba(255,255,255,0.6); padding: 6px 12px;
+            border-radius: 10px; display: flex; align-items: center;
+        }
+        .stat-box span { color: #d81b60; margin-right: 8px; }
+        
+        .item-group { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+        .btn-item {
+            flex: 1; padding: 6px 0; border: 2px solid #fff; border-radius: 12px;
+            font-size: 11px; font-weight: bold; color: white;
+            cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: all 0.1s; text-shadow: 1px 1px 0px rgba(0,0,0,0.2);
+        }
+        .btn-item:active { transform: translateY(4px); box-shadow: 0 0 0 transparent !important; }
+        .btn-item span { font-size: 16px; margin-bottom: 2px; display: block; text-shadow: none; }
+        
+        .btn-hammer { background: #82ccdd; box-shadow: 0 4px 0 #60a3bc; } 
+        .btn-bomb { background: #f8a5c2; box-shadow: 0 4px 0 #f78fb3; } 
+        .btn-shake { background: #f6e58d; box-shadow: 0 4px 0 #f4d03f; color: #574b90; } 
+        .btn-tilt { background: #b8e994; box-shadow: 0 4px 0 #78e08f; } 
+        .btn-tilt.active { background: #78e08f; box-shadow: 0 0 0 transparent; transform: translateY(4px); }
+
+        .multiplier-group { display: flex; justify-content: space-between; gap: 6px; }
+        .btn-mult {
+            flex: 1; padding: 10px 0; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: bold; color: #8e7cc3;
+            background: #fff; cursor: pointer; box-shadow: 0 4px 0 #d1c4e9; transition: all 0.1s;
+        }
+        .btn-mult:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+        .btn-mult.active { background: #b9a0e6; color: white; box-shadow: 0 4px 0 #9575cd; }
+
+        .floating-text {
+            position: absolute; font-weight: bold; font-size: 20px;
+            color: #fff; text-shadow: -1px -1px 0 #ff70a6, 1px -1px 0 #ff70a6, -1px 1px 0 #ff70a6, 1px 1px 0 #ff70a6;
+            pointer-events: none; z-index: 100;
+            animation: floatUp 1s forwards ease-out; white-space: nowrap;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.5); }
+        }
+        
+        .overlay {
+            position: absolute; top:0; left:0; right:0; bottom:0;
+            background: rgba(255,255,255,0.85); color: #4a4e69; display: flex;
+            justify-content: center; align-items: center; flex-direction: column;
+            z-index: 200; display: none; backdrop-filter: blur(5px);
+        }
+        
+        .action-btn {
+            margin-top:20px; padding: 12px 24px; font-size:16px; border-radius:12px; 
+            border:2px solid #fff; background:#ffb3c6; color:white; font-weight:bold; 
+            cursor:pointer; box-shadow: 0 4px 0 #f78fb3; transition: all 0.1s;
+        }
+        .action-btn:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="board-section">
+        <div class="board-header">🎲 합성 성공 시 보드판 이동! (레벨 = 전진 칸 수)</div>
+        <div id="board-track"><div id="token"></div></div>
+    </div>
+
+    <div id="game-section">
+        <div id="deadline-line"></div>
+        <div id="warning-banner">⚠️ 위험! 5.0초</div>
+        <div id="drop-line"></div>
+    </div>
+
+    <div id="ui-section">
+        <div class="stats-bar">
+            <div class="stat-box"><span>⚡에너지</span> <div id="val-energy">100</div></div>
+            <div class="stat-box"><span>💰골드</span> <div id="val-gold">0</div></div>
+        </div>
+        
+        <div class="item-group">
+            <button class="btn-item btn-hammer" onclick="useItem('hammer')"><span>🔨</span>뿅망치</button>
+            <button class="btn-item btn-bomb" onclick="useItem('bomb')"><span>💣</span>클린폭탄</button>
+            <button class="btn-item btn-shake" onclick="useItem('shake')"><span>🌪️</span>쉐이크</button>
+            <button class="btn-item btn-tilt" id="btn-tilt" onclick="useItem('tilt')">
+                <span>📱</span>
+                <div id="tilt-label">중력 틸트</div>
+                <div id="tilt-timer" style="display:none; color:#fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.4);">5.0s</div>
+            </button>
+        </div>
+
+        <div style="color: #6a4c9c; font-size: 11px; text-align: center; margin-bottom: 6px; font-weight: bold;">
+            에너지 소모 배수를 선택하고 상단 영역을 터치해 캐릭터를 드롭하세요!
+        </div>
+        <div class="multiplier-group">
+            <button class="btn-mult active" data-mult="1">x1</button>
+            <button class="btn-mult" data-mult="3">x3</button>
+            <button class="btn-mult" data-mult="5">x5</button>
+            <button class="btn-mult" data-mult="10" style="background:#fff59d; color:#d35400; box-shadow:0 4px 0 #f6c026;">x10</button>
+        </div>
+    </div>
+    
+    <div id="overlay-energy" class="overlay">
+        <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color:#d81b60;">앗! 에너지가 방전됐어요.</div>
+        <div style="font-size: 16px; margin-bottom: 20px;">에너지가 차오를 때까지 기다려주세요!</div>
+        <div style="font-size: 32px; font-weight: bold; color:#b9a0e6;" id="energy-timer-text">05:00</div>
+    </div>
+
+    <div id="overlay-gameover" class="overlay">
+        <div style="font-size: 32px; font-weight: bold; margin-bottom: 10px; color:#d81b60;">GAME OVER</div>
+        <div style="font-size: 16px; margin-bottom: 10px;">데드라인을 초과했습니다!</div>
+        <button class="action-btn" onclick="restartGame()">다시 시작 (⚡ -100 에너지)</button>
+    </div>
+</div>
+
+<script>
+    let energy = 100;
+    let gold = 0;
+    let multiplier = 1;
+    let energyCostBase = 2; 
+    let itemCost = 10; 
+
+    const DEADLINE_Y = 80;
+    let isGameOver = false;
+    let isWarning = false;
+    let warningTimeRemaining = 5.0;
+    let warningInterval = null;
+
+    let energyRechargeInterval = null;
+    let energyTimeRemaining = 0;
+
+    let isTiltActive = false;
+    let tiltInterval = null;
+    let tiltTimeRemaining = 0;
+
+    const uiEnergy = document.getElementById('val-energy');
+    const uiGold = document.getElementById('val-gold');
+    const overlayEnergy = document.getElementById('overlay-energy');
+    const overlayGameOver = document.getElementById('overlay-gameover');
+    const warningBanner = document.getElementById('warning-banner');
+
+    // 💡 이미지 렌더링을 위한 레벨 데이터 업데이트 (513x513 스케일링 자동 계산)
+    const baseImgSize = 513;
+    const LEVELS = [
+        { radius: 15, img: 'images/lv01.png' },
+        { radius: 22, img: 'images/lv02.png' },
+        { radius: 30, img: 'images/lv03.png' },
+        { radius: 40, img: 'images/lv04.png' },
+        { radius: 50, img: 'images/lv05.png' },
+        { radius: 62, img: 'images/lv06.png' },
+        { radius: 75, img: 'images/lv07.png' },
+        { radius: 90, img: 'images/lv08.png' },
+        { radius: 110, img: 'images/lv09.png' },
+        { radius: 130, img: 'images/lv10.png' } // 10단계까지 확장
+    ].map(level => {
+        // 이미지 비율을 구슬 크기에 정확히 맞추기 위한 연산
+        level.scale = (level.radius * 2) / baseImgSize;
+        return level;
+    });
+
+    /* --- 보드판 로직 --- */
+    const boardTrack = document.getElementById('board-track');
+    const token = document.getElementById('token');
+    
+    const cellCoords = [
+        {x: 0, y: 0}, {x: 75, y: 0}, {x: 150, y: 0}, {x: 225, y: 0}, {x: 300, y: 0},
+        {x: 300, y: 70}, {x: 300, y: 140},
+        {x: 225, y: 140}, {x: 150, y: 140}, {x: 75, y: 140}, {x: 0, y: 140},
+        {x: 0, y: 70}
+    ];
+    const totalCells = cellCoords.length;
+    let tokenPos = 0;
+
+    const cellsData = cellCoords.map((coord, i) => {
+        let type = 'Normal'; let text = '빈칸'; let cssClass = 'cell';
+        if (i % 3 === 0) { type = 'Gold'; text = '+100<br>골드'; cssClass += ' gold'; } 
+        else if (i === 6 || i === 11) { type = 'Event'; text = '장난<br>서리'; cssClass += ' event'; } 
+        else if (i === 4 || i === 10) { type = 'Energy'; text = '+50<br>에너지'; cssClass += ' energy'; }
+
+        const div = document.createElement('div'); div.className = cssClass;
+        div.style.left = coord.x + 'px'; div.style.top = coord.y + 'px'; div.innerHTML = text;
+        boardTrack.appendChild(div); return { ...coord, type, text, element: div };
+    });
+
+    function updateTokenVisual() {
+        const target = cellsData[tokenPos];
+        token.style.left = (target.x + 8) + 'px'; token.style.top = (target.y + 8) + 'px';
+    }
+    updateTokenVisual();
+
+    function moveBoardToken(steps) {
+        if(steps <= 0) return;
+        let currentStep = 0;
+        let moveInterval = setInterval(() => {
+            tokenPos = (tokenPos + 1) % totalCells;
+            updateTokenVisual();
+            currentStep++;
+            if (currentStep >= steps) {
+                clearInterval(moveInterval); handleLandOnCell(tokenPos);
+            }
+        }, 200); 
+    }
+
+    function handleLandOnCell(index) {
+        const cell = cellsData[index];
+        const tokenRect = token.getBoundingClientRect();
+        
+        if (cell.type === 'Gold') {
+            const reward = 100 * multiplier; gold += reward; uiGold.innerText = gold;
+            showFloatingText(`+${reward} 💰`, tokenRect.left, tokenRect.top);
+        } else if (cell.type === 'Event') {
+            showFloatingText(`장난 발동! 👻`, tokenRect.left - 20, tokenRect.top);
+            const reward = 300 * multiplier; gold += reward; uiGold.innerText = gold;
+            setTimeout(() => { showFloatingText(`약탈 +${reward}💰`, tokenRect.left, tokenRect.top - 30); }, 500);
+        } else if (cell.type === 'Energy') {
+            energy += 50; uiEnergy.innerText = energy;
+            uiEnergy.style.color = '#1dd1a1'; setTimeout(() => uiEnergy.style.color = '#d81b60', 500);
+            showFloatingText(`에너지 +50 ⚡`, tokenRect.left - 20, tokenRect.top);
+        }
+    }
+
+    function showFloatingText(text, x, y) {
+        const el = document.createElement('div');
+        el.className = 'floating-text'; el.innerText = text;
+        el.style.left = x + 'px'; el.style.top = y + 'px';
+        document.body.appendChild(el); setTimeout(() => el.remove(), 1000);
+    }
+
+    const btns = document.querySelectorAll('.btn-mult');
+    btns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            btns.forEach(b => b.classList.remove('active')); e.target.classList.add('active');
+            multiplier = parseInt(e.target.getAttribute('data-mult'));
+            uiEnergy.style.color = '#ff70a6'; setTimeout(() => uiEnergy.style.color = '#d81b60', 200);
+        });
+    });
+
+    /* --- 물리 엔진 설정 --- */
+    const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
+          Bodies = Matter.Bodies, Composite = Matter.Composite, Events = Matter.Events;
+
+    const gameSection = document.getElementById('game-section');
+    const width = gameSection.clientWidth;
+    const height = gameSection.clientHeight;
+
+    const engine = Engine.create();
+    const world = engine.world;
+    const render = Render.create({
+        element: gameSection, engine: engine,
+        options: { width: width, height: height, wireframes: false, background: 'transparent' }
+    });
+
+    Render.run(render); Runner.run(Runner.create(), engine);
+
+    const wallOptions = { isStatic: true, render: { fillStyle: 'transparent' } };
+    Composite.add(world, [
+        Bodies.rectangle(width / 2, height + 25, width, 50, wallOptions),
+        Bodies.rectangle(-25, height / 2, 50, height * 3, wallOptions),
+        Bodies.rectangle(width + 25, height / 2, 50, height * 3, wallOptions),
+        Bodies.rectangle(width / 2, -150, width * 2, 100, wallOptions)
+    ]);
+
+    function consumeEnergy(amount) {
+        if (energyRechargeInterval) return false; 
+        if (energy < amount && amount !== 100) { 
+            showFloatingText("⚡에너지 부족!", window.innerWidth/2 - 40, height/2); return false;
+        }
+        energy -= amount;
+        if (energy <= 0) {
+            energy = 0; uiEnergy.innerText = energy; startEnergyRecharge();
+        } else {
+            uiEnergy.innerText = energy;
+        }
+        return true;
+    }
+
+    function startEnergyRecharge() {
+        if (energyRechargeInterval) return;
+        overlayEnergy.style.display = 'flex';
+        energyTimeRemaining = 300; updateEnergyTimerUI();
+
+        energyRechargeInterval = setInterval(() => {
+            energyTimeRemaining--; updateEnergyTimerUI();
+            if (energyTimeRemaining <= 0) {
+                clearInterval(energyRechargeInterval); energyRechargeInterval = null;
+                energy = 100; uiEnergy.innerText = energy; overlayEnergy.style.display = 'none';
+            }
+        }, 1000);
+    }
+
+    function updateEnergyTimerUI() {
+        const m = String(Math.floor(energyTimeRemaining / 60)).padStart(2, '0');
+        const s = String(energyTimeRemaining % 60).padStart(2, '0');
+        document.getElementById('energy-timer-text').innerText = `${m}:${s}`;
+    }
+
+    Events.on(engine, 'afterUpdate', () => {
+        if (isGameOver || energyRechargeInterval) return;
+
+        const bodies = Composite.allBodies(world).filter(b => b.level !== undefined && !b.isStatic);
+        let isOverflow = false; const now = Date.now();
+
+        for (let b of bodies) {
+            if (now - b.spawnTime > 1000 && b.position.y - LEVELS[b.level].radius <= DEADLINE_Y && Math.abs(b.velocity.y) < 0.3) {
+                isOverflow = true; break;
+            }
+        }
+
+        if (isOverflow && !isWarning) {
+            isWarning = true; warningTimeRemaining = 5.0; warningBanner.style.display = 'block';
+            
+            warningInterval = setInterval(() => {
+                warningTimeRemaining -= 0.1;
+                warningBanner.innerText = `⚠️ 위험! ${Math.max(0, warningTimeRemaining).toFixed(1)}초`;
+                if (warningTimeRemaining <= 0) { clearInterval(warningInterval); triggerGameOver(); }
+            }, 100);
+        } else if (!isOverflow && isWarning) {
+            isWarning = false; clearInterval(warningInterval); warningBanner.style.display = 'none';
+        }
+    });
+
+    function triggerGameOver() {
+        isGameOver = true; isWarning = false; warningBanner.style.display = 'none';
+        overlayGameOver.style.display = 'flex';
+    }
+
+    window.restartGame = function() {
+        overlayGameOver.style.display = 'none';
+        const bodies = Composite.allBodies(world).filter(b => b.level !== undefined);
+        Composite.remove(world, bodies);
+        
+        isGameOver = false; isTiltActive = false; engine.gravity.x = 0;
+        
+        document.getElementById('btn-tilt').classList.remove('active');
+        document.getElementById('tilt-label').style.display = 'block';
+        document.getElementById('tilt-timer').style.display = 'none';
+        
+        consumeEnergy(100);
+    }
+
+    window.useItem = function(itemType) {
+        if (isGameOver || energyRechargeInterval) return;
+        if (itemType === 'tilt' && isTiltActive) { showFloatingText(`이미 작동 중! ⏳`, window.innerWidth/2 - 40, height/2); return; }
+        if (!consumeEnergy(itemCost)) return; 
+        
+        const allBalls = Composite.allBodies(world).filter(b => b.level !== undefined);
+        
+        if (itemType === 'hammer') {
+            if(allBalls.length > 0) {
+                const target = allBalls[Math.floor(Math.random() * allBalls.length)];
+                Composite.remove(world, target); showFloatingText(`뿅망치 얍! 🔨`, target.position.x, target.position.y);
+            }
+        } 
+        else if (itemType === 'bomb') {
+            const smallBalls = allBalls.filter(b => b.level <= 1);
+            if(smallBalls.length > 0) {
+                Composite.remove(world, smallBalls); showFloatingText(`펑!! 💣`, window.innerWidth/2 - 20, height/2);
+            } else { showFloatingText(`작은 공이 없어요!`, window.innerWidth/2 - 40, height/2); }
+        } 
+        else if (itemType === 'shake') {
+            allBalls.forEach(b => {
+                const force = 0.04 * b.mass;
+                Matter.Body.applyForce(b, b.position, { x: (Math.random() - 0.5) * force, y: -force });
+            });
+            showFloatingText(`쉐이크 🌪️`, window.innerWidth/2 - 30, height/2);
+        } 
+        else if (itemType === 'tilt') {
+            isTiltActive = true;
+            const tiltBtn = document.getElementById('btn-tilt');
+            const tiltLabel = document.getElementById('tilt-label');
+            const tiltTimer = document.getElementById('tilt-timer');
+            
+            tiltBtn.classList.add('active'); tiltLabel.style.display = 'none'; tiltTimer.style.display = 'block';
+
+            engine.gravity.x = Math.random() > 0.5 ? 0.8 : -0.8;
+            showFloatingText(`틸트 5초 작동! 📱`, window.innerWidth/2 - 50, height/2);
+            
+            tiltTimeRemaining = 5.0; tiltTimer.innerText = tiltTimeRemaining.toFixed(1) + 's';
+
+            tiltInterval = setInterval(() => {
+                tiltTimeRemaining -= 0.1;
+                if (tiltTimeRemaining <= 0) {
+                    clearInterval(tiltInterval); isTiltActive = false; engine.gravity.x = 0; 
+                    tiltBtn.classList.remove('active'); tiltLabel.style.display = 'block'; tiltTimer.style.display = 'none';
+                } else { tiltTimer.innerText = tiltTimeRemaining.toFixed(1) + 's'; }
+            }, 100);
+        }
+    };
+
+    const dropLine = document.getElementById('drop-line');
+    gameSection.addEventListener('mousemove', (e) => {
+        if(isGameOver || energyRechargeInterval) return;
+        dropLine.style.display = 'block'; dropLine.style.left = e.offsetX + 'px';
+    });
+    gameSection.addEventListener('mouseleave', () => { dropLine.style.display = 'none'; });
+
+    let canDrop = true;
+    gameSection.addEventListener('pointerdown', (e) => {
+        if (!canDrop || isGameOver || energyRechargeInterval) return;
+        
+        const currentCost = energyCostBase * multiplier;
+        if (!consumeEnergy(currentCost)) return;
+
+        const dropLevel = Math.floor(Math.random() * 2);
+        const levelData = LEVELS[dropLevel];
+        const startX = Math.min(Math.max(e.offsetX, levelData.radius), width - levelData.radius);
+        
+        // 💡 이미지가 적용되도록 sprite 렌더링 옵션 추가
+        const body = Bodies.circle(startX, 30, levelData.radius, {
+            restitution: 0.3, friction: 0.1,
+            render: {
+                sprite: {
+                    texture: levelData.img,
+                    xScale: levelData.scale,
+                    yScale: levelData.scale
+                }
+            }
+        });
+        body.level = dropLevel; body.isMerging = false; body.spawnTime = Date.now();
+        Composite.add(world, body);
+
+        canDrop = false; setTimeout(() => canDrop = true, 500);
+    });
+
+    Events.on(engine, 'collisionStart', (event) => {
+        const pairs = event.pairs;
+        for (let i = 0; i < pairs.length; i++) {
+            const bodyA = pairs[i].bodyA; const bodyB = pairs[i].bodyB;
+
+            if (bodyA.level !== undefined && bodyB.level !== undefined && 
+                bodyA.level === bodyB.level && 
+                !bodyA.isMerging && !bodyB.isMerging && bodyA.level < LEVELS.length - 1) {
+                
+                bodyA.isMerging = true; bodyB.isMerging = true;
+                const nextLevel = bodyA.level + 1;
+                
+                setTimeout(() => {
+                    const midX = (bodyA.position.x + bodyB.position.x) / 2;
+                    const midY = (bodyA.position.y + bodyB.position.y) / 2;
+                    
+                    Composite.remove(world, [bodyA, bodyB]);
+                    const nextLevelData = LEVELS[nextLevel];
+                    
+                    // 💡 병합 시 새로운 이미지 렌더링 적용
+                    const newBody = Bodies.circle(midX, midY, nextLevelData.radius, {
+                        restitution: 0.3,
+                        render: {
+                            sprite: {
+                                texture: nextLevelData.img,
+                                xScale: nextLevelData.scale,
+                                yScale: nextLevelData.scale
+                            }
+                        }
+                    });
+                    newBody.level = nextLevel; newBody.isMerging = false; newBody.spawnTime = Date.now();
+                    Composite.add(world, newBody);
+
+                    moveBoardToken(nextLevel + 1);
+                }, 50);
+            }
+        }
+    });
+</script>
+</body>
+</html>
