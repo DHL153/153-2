@@ -175,7 +175,6 @@
     <div id="overlay-energy" class="overlay">
         <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px; color:#d81b60;">앗! 에너지가 방전됐어요.</div>
         <div style="font-size: 16px; margin-bottom: 20px;">에너지가 차오를 때까지 기다려주세요!</div>
-        <!-- 💡 30초 테스트용으로 텍스트 변경 -->
         <div style="font-size: 32px; font-weight: bold; color:#b9a0e6;" id="energy-timer-text">00:30</div>
     </div>
 
@@ -189,10 +188,10 @@
 </div>
 
 <script>
-    let energy = 50; // 초기 에너지 50
+    let energy = 50; 
     let gold = 0;
     let multiplier = 1;
-    let energyCostBase = 1; 
+    let energyCostBase = 1; // 💡 기본 소모값 1
     let itemCost = 10; 
 
     const DEADLINE_Y = 40;
@@ -236,13 +235,14 @@
     const totalCells = cellCoords.length;
     let tokenPos = 0;
 
+    // 💡 보드판 텍스트 및 밸런스 수정
     const cellsData = cellCoords.map((coord, i) => {
         let type = 'Normal'; let text = '빈칸'; let cssClass = 'cell';
         
         if (i === 0 || i === 3 || i === 6 || i === 9) { type = 'Gold'; text = '+100<br>골드'; cssClass += ' gold'; } 
-        else if (i === 2 || i === 8) { type = 'MinusGold'; text = '-100<br>골드'; cssClass += ' gold-minus'; }
-        else if (i === 1 || i === 7) { type = 'Energy'; text = '+10<br>에너지'; cssClass += ' energy'; }
-        else if (i === 4 || i === 10) { type = 'MinusEnergy'; text = '-10<br>에너지'; cssClass += ' energy-minus'; }
+        else if (i === 2 || i === 8) { type = 'MinusGold'; text = '-20<br>골드'; cssClass += ' gold-minus'; }
+        else if (i === 1 || i === 7) { type = 'Energy'; text = '+15<br>에너지'; cssClass += ' energy'; }
+        else if (i === 4 || i === 10) { type = 'MinusEnergy'; text = '-5<br>에너지'; cssClass += ' energy-minus'; }
         else if (i === 5 || i === 11) { type = 'Event'; text = '장난<br>서리'; cssClass += ' event'; }
 
         const div = document.createElement('div'); div.className = cssClass;
@@ -265,6 +265,7 @@
         }, 200); 
     }
 
+    // 💡 보드판 보상 수치 수정 적용
     function handleLandOnCell(index) {
         const cell = cellsData[index];
         const tokenRect = token.getBoundingClientRect();
@@ -273,19 +274,19 @@
             const reward = 100 * multiplier; gold += reward; uiGold.innerText = gold;
             showFloatingText(`+${reward} 💰`, tokenRect.left, tokenRect.top);
         } else if (cell.type === 'MinusGold') {
-            const penalty = 100 * multiplier; gold -= penalty; if(gold < 0) gold = 0; uiGold.innerText = gold;
+            const penalty = 20 * multiplier; gold -= penalty; if(gold < 0) gold = 0; uiGold.innerText = gold;
             showFloatingText(`-${penalty} 💰`, tokenRect.left, tokenRect.top);
         } else if (cell.type === 'Event') {
             showFloatingText(`장난 발동! 👻`, tokenRect.left - 20, tokenRect.top);
             const reward = 300 * multiplier; gold += reward; uiGold.innerText = gold;
             setTimeout(() => { showFloatingText(`약탈 +${reward}💰`, tokenRect.left, tokenRect.top - 30); }, 500);
         } else if (cell.type === 'Energy') {
-            energy += 10; uiEnergy.innerText = energy; uiEnergy.style.color = '#1dd1a1'; 
-            setTimeout(() => uiEnergy.style.color = '#d81b60', 500); showFloatingText(`에너지 +10 ⚡`, tokenRect.left - 20, tokenRect.top);
+            energy += 15; uiEnergy.innerText = energy; uiEnergy.style.color = '#1dd1a1'; 
+            setTimeout(() => uiEnergy.style.color = '#d81b60', 500); showFloatingText(`에너지 +15 ⚡`, tokenRect.left - 20, tokenRect.top);
         } else if (cell.type === 'MinusEnergy') {
-            energy -= 10; if (energy <= 0) { energy = 0; startEnergyRecharge(); }
+            energy -= 5; if (energy <= 0) { energy = 0; startEnergyRecharge(); }
             uiEnergy.innerText = energy; uiEnergy.style.color = '#e17055'; 
-            setTimeout(() => uiEnergy.style.color = '#d81b60', 500); showFloatingText(`에너지 -10 ⚡`, tokenRect.left - 20, tokenRect.top);
+            setTimeout(() => uiEnergy.style.color = '#d81b60', 500); showFloatingText(`에너지 -5 ⚡`, tokenRect.left - 20, tokenRect.top);
         }
     }
 
@@ -375,13 +376,11 @@
     function startEnergyRecharge() {
         if (energyRechargeInterval) return;
         
-        // 💡 방전 시 오토 모드가 켜져있다면 강제로 종료
         if (isAutoDrop) {
             toggleAutoDrop();
         }
 
         overlayEnergy.style.display = 'flex'; 
-        // 💡 테스트를 위해 충전 시간을 30초로 변경
         energyTimeRemaining = 30; 
         updateEnergyTimerUI();
         
@@ -486,7 +485,10 @@
 
     function executeDrop(xPos) {
         if (!canDrop || isGameOver || energyRechargeInterval) return;
-        const currentCost = energyCostBase * multiplier; if (!consumeEnergy(currentCost)) return;
+        
+        // 💡 구슬 레벨 무관하게 1 × 배수 만큼 소모되도록 복구
+        const currentCost = energyCostBase * multiplier; 
+        if (!consumeEnergy(currentCost)) return;
 
         const levelData = LEVELS[nextDropLevel];
         const startX = Math.min(Math.max(xPos, levelData.radius), width - levelData.radius);
